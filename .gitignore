@@ -1,0 +1,52 @@
+# Python
+venv/
+env/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Generated audio files (optional - you might want to keep some examples)
+realtime_recording_*.wav
+tts_output_*.wav
+tts_corrected_*.wav
+mic_recording.wav
+output.wav
+
+# Model files (these are large, download separately)
+*.onnx
+*.onnx.json
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+.temporary/
+
+# Spell check dictionary (large file, download separately)
+frequency_dictionary_*.txt
