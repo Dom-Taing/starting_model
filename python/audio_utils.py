@@ -5,22 +5,49 @@ import time
 import numpy as np
 import scipy.io.wavfile as wavfile
 import sounddevice as sd
+from scipy.signal import butter, sosfilt
 
 
 class AudioPreprocessor:
     """
     Preprocessing stage applied to raw audio before it reaches the ASR model.
 
-    Currently a pass-through. Add steps here as needed, for example:
-    # TODO: noise reduction (e.g. noisereduce library)
-    # TODO: silence trimming / voice activity detection
-    # TODO: dynamic range normalisation
-    # TODO: band-pass filtering to remove out-of-band noise
-    # TODO: resampling guard (ensure sr matches model expectations)
+    Current steps:
+      1. Band-pass filter — keeps the speech frequency band (80 Hz – 8 kHz),
+         removing low-frequency rumble (HVAC, handling noise) and high-frequency
+         hiss simultaneously. Uses a 4th-order Butterworth filter, which has a
+         maximally flat passband (no ripple) before rolling off outside the band.
+
+         Why not just a low-pass?
+         A low-pass alone would attenuate high-frequency consonants (s, f, t, sh
+         live at 3–8 kHz), hurting transcription accuracy. The band-pass cuts
+         noise on both ends while leaving the full speech band intact.
+
+    Future steps (TODO):
+      - Voice activity detection: skip silent chunks before ASR
+      - Dynamic range normalisation: consistent loudness across recordings
+      - Resampling guard: ensure sr matches model expectations
     """
 
+    def __init__(
+        self,
+        highpass_hz: float = 80.0,
+        lowpass_hz: float = 8000.0,
+        filter_order: int = 4,
+    ):
+        self.highpass_hz = highpass_hz
+        self.lowpass_hz = lowpass_hz
+        self.filter_order = filter_order
+
+    def _bandpass(self, audio: np.ndarray, sample_rate: int) -> np.ndarray:
+        nyquist = sample_rate / 2.0
+        low = self.highpass_hz / nyquist
+        high = min(self.lowpass_hz / nyquist, 0.9999)
+        sos = butter(self.filter_order, [low, high], btype="band", output="sos")
+        return sosfilt(sos, audio).astype(np.float32)
+
     def process(self, audio: np.ndarray, sample_rate: int) -> np.ndarray:
-        # Pass-through — audio is returned unchanged until preprocessing is implemented
+        audio = self._bandpass(audio, sample_rate)
         return audio
 
 
