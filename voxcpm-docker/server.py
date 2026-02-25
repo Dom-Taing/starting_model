@@ -15,8 +15,19 @@ import io
 import os
 
 import soundfile as sf
+import torch
+import torchaudio
 from flask import Flask, jsonify, request, send_file
 from voxcpm import VoxCPM
+
+# torchaudio ≥ 2.6 requires torchcodec which is not installed in this image.
+# Patch torchaudio.load to use soundfile (already present) so voice-cloning
+# prompt loading works without adding a new dependency or rebuilding.
+def _sf_load(path, *args, **kwargs):
+    data, sr = sf.read(path, dtype="float32", always_2d=True)
+    return torch.from_numpy(data.T), sr  # [channels, samples]
+
+torchaudio.load = _sf_load
 
 app = Flask(__name__)
 

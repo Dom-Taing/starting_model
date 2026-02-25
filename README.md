@@ -263,28 +263,23 @@ This takes a few minutes the first time due to the PyTorch download.
 
 ### 2. Run the server
 
-```bash
-docker run -p 8080:8080 \
-  -v "$(pwd)/hf-cache:/root/.cache/huggingface" \
-  voxcpm-tts
-```
-
-The `-v` flag mounts the local `hf-cache/` directory into the container so the model weights (`openbmb/VoxCPM1.5`) are cached on disk and not re-downloaded on every container start. On first run this will download the model (~2GB); subsequent starts load from the cache immediately.
-
-#### Pin a consistent voice (recommended for stream mode)
-
-By default VoxCPM picks a random speaker on each call. To use a fixed voice, provide a short (~5–10 s) reference WAV and its transcript:
+Run from inside `voxcpm-docker/`. The command mounts `server.py` and `hf-cache/` so you never need to rebuild the image for code changes — only rebuild if you change the `Dockerfile` (dependencies, patches).
 
 ```bash
 docker run -p 8080:8080 \
   -v "$(pwd)/hf-cache:/root/.cache/huggingface" \
-  -v /path/to/reference.wav:/ref/voice.wav \
+  -v "$(pwd)/server.py:/app/server.py" \
+  -v "$(pwd)/reference_voice.wav:/ref/voice.wav" \
   -e VOXCPM_REFERENCE_WAV=/ref/voice.wav \
-  -e VOXCPM_REFERENCE_TEXT="Verbatim transcript of the reference clip." \
+  -e VOXCPM_REFERENCE_TEXT="The quick brown fox jumps over the lazy dog. Please call Stella and ask her to bring six spoons of fresh snow peas." \
   voxcpm-tts
 ```
 
-All synthesis calls will then clone from that reference, giving consistent output across utterances.
+- `hf-cache/` — caches model weights (~2GB) so they are not re-downloaded on every start
+- `server.py` — mounts your local file over the one baked into the image; edit and restart without rebuilding
+- `reference_voice.wav` — pins a consistent voice; record it with `python record_reference.py`
+
+All synthesis calls clone from the reference voice, giving consistent output across utterances.
 
 Wait for the log line:
 
