@@ -1,6 +1,7 @@
 import tempfile
 import threading
 import time
+import noisereduce as nr
 
 import numpy as np
 import scipy.io.wavfile as wavfile
@@ -34,10 +35,12 @@ class AudioPreprocessor:
         highpass_hz: float = 80.0,
         lowpass_hz: float = 8000.0,
         filter_order: int = 4,
+        debug: bool = False,
     ):
         self.highpass_hz = highpass_hz
         self.lowpass_hz = lowpass_hz
         self.filter_order = filter_order
+        self.debug = debug
 
     def _bandpass(self, audio: np.ndarray, sample_rate: int) -> np.ndarray:
         nyquist = sample_rate / 2.0
@@ -47,7 +50,14 @@ class AudioPreprocessor:
         return sosfilt(sos, audio).astype(np.float32)
 
     def process(self, audio: np.ndarray, sample_rate: int) -> np.ndarray:
+        if self.debug:
+            raw = audio.copy()
         audio = self._bandpass(audio, sample_rate)
+        audio = nr.reduce_noise(y=audio, sr=sample_rate).astype(np.float32)
+        if self.debug:
+            wavfile.write("debug_raw.wav", sample_rate, raw)
+            wavfile.write("debug_filtered.wav", sample_rate, audio)
+            print("[debug] saved debug_raw.wav and debug_filtered.wav")
         return audio
 
 

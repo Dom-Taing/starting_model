@@ -39,6 +39,7 @@ msgpack==1.1.2
 nest-asyncio==1.6.0
 networkx==3.2.1
 numba==0.60.0
+noisereduce
 numpy==1.26.4
 onnxruntime==1.19.2
 packaging==26.0

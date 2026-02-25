@@ -1,6 +1,7 @@
 import argparse
 import sys
 
+from audio_utils import AudioPreprocessor
 from models.asr.wav2vec2 import Wav2Vec2ASR
 from models.asr.whisper import WhisperASR
 from models.tts.piper import PiperTTS
@@ -34,11 +35,14 @@ def build_pipeline(args) -> SpeechPipeline:
     # Text processor
     text_processor = TextProcessor() if args.autocorrect else None
 
+    audio_preprocessor = AudioPreprocessor(debug=args.debug_audio)
+
     return SpeechPipeline(
         asr=asr,
         tts=tts,
         sample_rate=args.sample_rate,
         text_processor=text_processor,
+        audio_preprocessor=audio_preprocessor,
     )
 
 
@@ -72,6 +76,8 @@ def main():
                         metavar="SECS", help="Seconds of silence that ends an utterance (default: 0.8)")
     parser.add_argument("--min-speech", type=float, default=0.3,
                         metavar="SECS", help="Minimum speech duration to accept (default: 0.3)")
+    parser.add_argument("--debug-audio", action="store_true",
+                        help="Save raw and filtered audio to debug_raw.wav / debug_filtered.wav (debug only)")
 
     args = parser.parse_args()
 

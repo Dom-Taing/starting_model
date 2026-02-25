@@ -21,7 +21,7 @@ Microphone / Audio File
   AudioRecorder / load_audio()
         │
         ▼
-  AudioPreprocessor.process()      (band-pass filter, optional)
+  AudioPreprocessor.process()      (band-pass filter → noise reduction)
         │
         ▼
     ASRModel.transcribe()          (Wav2Vec2ASR, WhisperASR, ...)
@@ -46,7 +46,7 @@ AUDIO THREAD   InputStream callback
                    → if utterance boundary detected → queue.put(audio)
 
 WORKER THREAD  (one utterance at a time, serial)
-                   → AudioPreprocessor → ASR → TextProcessor → TTS → play → loop
+                   → AudioPreprocessor (bandpass → denoise) → ASR → TextProcessor → TTS → play → loop
 ```
 
 Utterance boundaries are detected by trailing silence (default 0.8 s). Each utterance is played back immediately after it is transcribed and synthesized, with no overlap.
@@ -185,6 +185,28 @@ usage: main.py [-h] [--asr {wav2vec2,whisper}] [--tts {piper,voxcpm,none}]
 |---|---|---|---|
 | `wav2vec2` | ~360MB | Fast | Good for clean, clear speech |
 | `whisper` | ~39MB (tiny) | Moderate | Better accent/noise robustness |
+
+---
+
+## Preprocessing
+
+`AudioPreprocessor` (in `python/audio_utils.py`) runs two steps on raw audio before it reaches the ASR model:
+
+| Step | What it does | Why |
+|---|---|---|
+| **Band-pass filter** | 4th-order Butterworth, 80 Hz – 8 kHz | Removes low-frequency rumble (HVAC, handling noise) and high-frequency hiss while keeping the full speech band intact |
+| **Noise reduction** | `noisereduce` spectral subtraction | Suppresses stationary background noise (fan hum, room tone) to improve ASR accuracy |
+
+Constructor parameters and their defaults:
+
+| Parameter | Default | Description |
+|---|---|---|
+| `highpass_hz` | `80.0` | Low-frequency cut-off (Hz) |
+| `lowpass_hz` | `8000.0` | High-frequency cut-off (Hz) |
+| `filter_order` | `4` | Butterworth filter order |
+| `debug` | `False` | Saves `debug_raw.wav` and `debug_filtered.wav` to disk for inspection |
+
+**Planned additions:** voice activity detection (skip silent chunks), dynamic range normalisation, resampling guard.
 
 ---
 
