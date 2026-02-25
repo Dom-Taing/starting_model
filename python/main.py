@@ -48,7 +48,7 @@ def main():
                         help="ASR model to use (default: wav2vec2)")
     parser.add_argument("--tts", choices=["piper", "voxcpm", "none"], default="piper",
                         help="TTS model to use (default: piper)")
-    parser.add_argument("--mode", choices=["realtime", "file"], default="realtime",
+    parser.add_argument("--mode", choices=["realtime", "file", "stream"], default="realtime",
                         help="Pipeline mode (default: realtime)")
     parser.add_argument("--input", metavar="PATH",
                         help="Input audio file path (required for file mode)")
@@ -66,11 +66,19 @@ def main():
                         metavar="URL", help="VoxCPM server URL")
     parser.add_argument("--autocorrect", action="store_true",
                         help="Enable SymSpell autocorrect on transcribed text")
+    parser.add_argument("--silence-threshold", type=float, default=0.01,
+                        metavar="RMS", help="RMS threshold for voice activity (default: 0.01)")
+    parser.add_argument("--trailing-silence", type=float, default=0.8,
+                        metavar="SECS", help="Seconds of silence that ends an utterance (default: 0.8)")
+    parser.add_argument("--min-speech", type=float, default=0.3,
+                        metavar="SECS", help="Minimum speech duration to accept (default: 0.3)")
 
     args = parser.parse_args()
 
     if args.mode == "file" and not args.input:
         parser.error("--input is required for file mode")
+    if args.mode == "stream" and args.tts == "none":
+        parser.error("--tts none is not allowed with --mode stream; choose piper or voxcpm")
 
     pipeline = build_pipeline(args)
 
@@ -80,6 +88,12 @@ def main():
         if pipeline.tts is not None:
             out = pipeline.synthesize(text, args.output)
             print(f"TTS saved to: {out}")
+    elif args.mode == "stream":
+        pipeline.stream(
+            silence_threshold=args.silence_threshold,
+            trailing_silence_s=args.trailing_silence,
+            min_speech_duration_s=args.min_speech,
+        )
     else:
         result = pipeline.realtime_transcription(chunk_duration=args.chunk_duration)
         if result:

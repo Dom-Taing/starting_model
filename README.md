@@ -1,12 +1,14 @@
 # Speech Pipeline
 
-Real-time and file-based speech processing using a modular ASR + TTS architecture.
+Real-time, streaming, and file-based speech processing using a modular ASR + TTS architecture.
 
 ---
 
 ## Overview
 
 This project provides a speech pipeline that records audio, transcribes it with an ASR model (wav2vec2 by default), optionally post-processes the text, and synthesizes speech from it using a TTS model (Piper by default). Each component is swappable via a clean OOP interface.
+
+The primary use case is **accent clarification**: speak naturally into a mic, and the pipeline instantly re-speaks each utterance in a clear, consistent synthesized voice so others can understand you more easily.
 
 ---
 
@@ -19,6 +21,9 @@ Microphone / Audio File
   AudioRecorder / load_audio()
         │
         ▼
+  AudioPreprocessor.process()      (band-pass filter, optional)
+        │
+        ▼
     ASRModel.transcribe()          (Wav2Vec2ASR, WhisperASR, ...)
         │
         ▼
@@ -28,8 +33,23 @@ Microphone / Audio File
     TTSModel.synthesize()          (PiperTTS, VoxCPMTTS, ...)
         │
         ▼
-   output.wav / realtime playback
+   output.wav / immediate playback
 ```
+
+### Stream mode (accent clarification)
+
+In `--mode stream` the pipeline runs as a continuous live loop:
+
+```
+AUDIO THREAD   InputStream callback
+                   → UtteranceSegmenter.push(chunk)   (RMS only, never blocks)
+                   → if utterance boundary detected → queue.put(audio)
+
+WORKER THREAD  (one utterance at a time, serial)
+                   → AudioPreprocessor → ASR → TextProcessor → TTS → play → loop
+```
+
+Utterance boundaries are detected by trailing silence (default 0.8 s). Each utterance is played back immediately after it is transcribed and synthesized, with no overlap.
 
 ---
 
@@ -78,7 +98,31 @@ mkdir -p voice_model
 
 ## Usage
 
-### Realtime transcription (default)
+### Stream mode — accent clarification (recommended)
+
+```bash
+python python/main.py --mode stream --asr whisper --tts piper
+```
+
+Speak into the mic. Each time you pause, the pipeline transcribes your utterance and immediately plays it back in a clear synthesized voice. Press **ENTER** to stop.
+
+Use **headphones** to prevent the mic picking up TTS playback.
+
+```bash
+# Tune for slower speakers (more pause tolerance)
+python python/main.py --mode stream --asr whisper --tts piper --trailing-silence 1.2
+
+# With VoxCPM (Docker server must be running)
+python python/main.py --mode stream --asr whisper --tts voxcpm
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--silence-threshold` | `0.01` | RMS level that counts as speech |
+| `--trailing-silence` | `0.8` | Seconds of silence that ends an utterance |
+| `--min-speech` | `0.3` | Minimum speech duration accepted (rejects coughs/noise) |
+
+### Realtime transcription
 
 ```bash
 python python/main.py
@@ -106,10 +150,10 @@ Whisper handles accents and noisier audio better than wav2vec2 at the cost of sl
 python python/main.py --gpu
 ```
 
-### Use VoxCPM TTS (requires Docker server)
+### Use VoxCPM TTS (requires Docker server, see Docker / VoxCPM section)
 
 ```bash
-python python/main.py --tts voxcpm --voxcpm-url http://localhost:8080
+python python/main.py --tts voxcpm
 ```
 
 ### Disable TTS output
@@ -128,9 +172,11 @@ python python/main.py --mode file --input Audio/test_1.wav --autocorrect
 
 ```
 usage: main.py [-h] [--asr {wav2vec2,whisper}] [--tts {piper,voxcpm,none}]
-               [--mode {realtime,file}] [--input PATH] [--output PATH]
+               [--mode {realtime,file,stream}] [--input PATH] [--output PATH]
                [--sample-rate INT] [--chunk-duration FLOAT] [--gpu]
                [--piper-model PATH] [--voxcpm-url URL] [--autocorrect]
+               [--silence-threshold RMS] [--trailing-silence SECS]
+               [--min-speech SECS]
 ```
 
 ### ASR model comparison
@@ -173,14 +219,76 @@ python python/main.py --asr my_model
 
 ## Docker / VoxCPM
 
-Build and run the VoxCPM TTS Docker container:
+VoxCPM runs as a Flask HTTP server inside Docker. The pipeline client (`python/models/tts/voxcpm.py`) sends text to it and receives WAV bytes back.
+
+### Requirements
+
+- Docker Desktop installed and running
+
+### 1. Build the image
 
 ```bash
 cd voxcpm-docker
 docker build -t voxcpm-tts .
-docker run -p 8080:8080 voxcpm-tts
 ```
 
-The `VoxCPMTTS` client in `python/models/tts/voxcpm.py` will POST text to `{server_url}/synthesize` and write the returned audio bytes to disk.
+The build will:
+- Install PyTorch (CPU), `voxcpm`, `soundfile`, and `flask`
+- Apply a required attention-mask patch to the voxcpm source
+- Copy `server.py` into the image
 
-> **Note:** The Docker container currently runs a local TTS script. An HTTP server endpoint (`/synthesize`) needs to be added to the container before `VoxCPMTTS` is fully functional.
+This takes a few minutes the first time due to the PyTorch download.
+
+### 2. Run the server
+
+```bash
+docker run -p 8080:8080 \
+  -v "$(pwd)/hf-cache:/root/.cache/huggingface" \
+  voxcpm-tts
+```
+
+The `-v` flag mounts the local `hf-cache/` directory into the container so the model weights (`openbmb/VoxCPM1.5`) are cached on disk and not re-downloaded on every container start. On first run this will download the model (~2GB); subsequent starts load from the cache immediately.
+
+#### Pin a consistent voice (recommended for stream mode)
+
+By default VoxCPM picks a random speaker on each call. To use a fixed voice, provide a short (~5–10 s) reference WAV and its transcript:
+
+```bash
+docker run -p 8080:8080 \
+  -v "$(pwd)/hf-cache:/root/.cache/huggingface" \
+  -v /path/to/reference.wav:/ref/voice.wav \
+  -e VOXCPM_REFERENCE_WAV=/ref/voice.wav \
+  -e VOXCPM_REFERENCE_TEXT="Verbatim transcript of the reference clip." \
+  voxcpm-tts
+```
+
+All synthesis calls will then clone from that reference, giving consistent output across utterances.
+
+Wait for the log line:
+
+```
+Model ready.
+ * Running on http://0.0.0.0:8080
+```
+
+### 3. Verify the server is up
+
+```bash
+curl http://localhost:8080/health
+# {"status": "ok"}
+```
+
+### 4. Use it from the pipeline
+
+```bash
+python python/main.py --tts voxcpm
+# or with a custom server address:
+python python/main.py --tts voxcpm --voxcpm-url http://localhost:8080
+```
+
+### Endpoints
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/health` | — | `{"status": "ok"}` |
+| POST | `/synthesize` | `{"text": "..."}` | `audio/wav` bytes |
