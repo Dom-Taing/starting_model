@@ -6,7 +6,7 @@ Real-time and file-based speech processing using a modular ASR + TTS architectur
 
 ## Overview
 
-This project provides a speech pipeline that records audio, transcribes it with an ASR model (wav2vec2 by default), optionally post-processes the text, and synthesises speech from it using a TTS model (Piper by default). Each component is swappable via a clean OOP interface.
+This project provides a speech pipeline that records audio, transcribes it with an ASR model (wav2vec2 by default), optionally post-processes the text, and synthesizes speech from it using a TTS model (Piper by default). Each component is swappable via a clean OOP interface.
 
 ---
 
@@ -19,7 +19,7 @@ Microphone / Audio File
   AudioRecorder / load_audio()
         │
         ▼
-    ASRModel.transcribe()          (Wav2Vec2ASR, ...)
+    ASRModel.transcribe()          (Wav2Vec2ASR, WhisperASR, ...)
         │
         ▼
   TextProcessor.process()          (optional: normalize + autocorrect)
@@ -92,6 +92,14 @@ Press **ENTER** to stop recording. The pipeline transcribes in 3-second chunks, 
 python python/main.py --mode file --input Audio/test_1.wav
 ```
 
+### Use Whisper Tiny for transcription
+
+```bash
+python python/main.py --asr whisper
+```
+
+Whisper handles accents and noisier audio better than wav2vec2 at the cost of slightly higher latency. The default variant is `openai/whisper-tiny` (39M parameters, English-only transcription mode).
+
 ### Use GPU for faster ASR
 
 ```bash
@@ -119,11 +127,18 @@ python python/main.py --mode file --input Audio/test_1.wav --autocorrect
 ### All options
 
 ```
-usage: main.py [-h] [--asr {wav2vec2}] [--tts {piper,voxcpm,none}]
+usage: main.py [-h] [--asr {wav2vec2,whisper}] [--tts {piper,voxcpm,none}]
                [--mode {realtime,file}] [--input PATH] [--output PATH]
                [--sample-rate INT] [--chunk-duration FLOAT] [--gpu]
                [--piper-model PATH] [--voxcpm-url URL] [--autocorrect]
 ```
+
+### ASR model comparison
+
+| Model | Size | Speed | Notes |
+|---|---|---|---|
+| `wav2vec2` | ~360MB | Fast | Good for clean, clear speech |
+| `whisper` | ~39MB (tiny) | Moderate | Better accent/noise robustness |
 
 ---
 
