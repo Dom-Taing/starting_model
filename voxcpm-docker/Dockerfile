@@ -8,7 +8,7 @@ RUN pip install --no-cache-dir -U pip
 
 RUN pip install --no-cache-dir torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
 
-RUN pip install --no-cache-dir voxcpm soundfile
+RUN pip install --no-cache-dir voxcpm soundfile flask
 
 RUN python - <<'PY'
 import pathlib
@@ -33,4 +33,8 @@ PY
 
 WORKDIR /app
 
-CMD ["python", "-c", "import torch; print('torch', torch.__version__); from voxcpm import VoxCPM; print('VoxCPM import OK')"]
+COPY server.py .
+
+EXPOSE 8080
+
+CMD ["python", "server.py"]
