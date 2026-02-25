@@ -4,11 +4,7 @@ from voxcpm import VoxCPM
 model = VoxCPM.from_pretrained("openbmb/VoxCPM1.5")
 
 text = (
-    "Hello Dom. This is a longer synthesis test using VoxCPM running inside Docker. "
-    "We want to verify that the model can handle multiple sentences without crashing. "
-    "This paragraph includes a natural speaking rhythm with pauses and transitions. "
-    "If everything works correctly, the output audio should sound continuous and stable. "
-    "Let us confirm that longer generation runs without any attention or dimension errors."
+    "Hello Dom 2.0. This is a longer synthesis test using VoxCPM running inside Docker. "
 )
 
 # Non-streaming
@@ -27,15 +23,3 @@ wav = model.generate(
 
 sf.write("output.wav", wav, model.tts_model.sample_rate)
 print("saved: output.wav")
-
-# # Streaming
-# chunks = []
-# for chunk in model.generate_streaming(
-#     text = "Streaming text to speech is easy with VoxCPM!",
-#     # supports same args as above
-# ):
-#     chunks.append(chunk)
-# wav = np.concatenate(chunks)
-
-# sf.write("output_streaming.wav", wav, model.tts_model.sample_rate)
-# print("saved: output_streaming.wav")

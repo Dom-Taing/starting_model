@@ -51,3 +51,6 @@ output.wav
 
 # Spell check dictionary (large file, download separately)
 frequency_dictionary_*.txt
+
+# docker
+voxcpm-docker/hf-cache
