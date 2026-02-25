@@ -2,6 +2,7 @@ import argparse
 import sys
 
 from models.asr.wav2vec2 import Wav2Vec2ASR
+from models.asr.whisper import WhisperASR
 from models.tts.piper import PiperTTS
 from models.tts.voxcpm import VoxCPMTTS
 from pipeline import SpeechPipeline
@@ -13,6 +14,8 @@ def build_pipeline(args) -> SpeechPipeline:
     device = 0 if args.gpu else -1
     if args.asr == "wav2vec2":
         asr = Wav2Vec2ASR(device=device)
+    elif args.asr == "whisper":
+        asr = WhisperASR(device=device)
     else:
         print(f"Unknown ASR model: {args.asr}", file=sys.stderr)
         sys.exit(1)
@@ -41,7 +44,7 @@ def build_pipeline(args) -> SpeechPipeline:
 
 def main():
     parser = argparse.ArgumentParser(description="Speech pipeline: ASR + TTS")
-    parser.add_argument("--asr", choices=["wav2vec2"], default="wav2vec2",
+    parser.add_argument("--asr", choices=["wav2vec2", "whisper"], default="wav2vec2",
                         help="ASR model to use (default: wav2vec2)")
     parser.add_argument("--tts", choices=["piper", "voxcpm", "none"], default="piper",
                         help="TTS model to use (default: piper)")
