@@ -15,7 +15,7 @@ from .base import ASRModel
 class WhisperASR(ASRModel):
     def __init__(
         self,
-        model_id: str = "openai/whisper-tiny",
+        model_id: str = "openai/whisper-tiny.en",
         device: int = -1,
         silence_threshold: float = 0.01,
     ):
@@ -40,7 +40,7 @@ class WhisperASR(ASRModel):
                 device=self.device,
                 chunk_length_s=30,
                 stride_length_s=5,
-                generate_kwargs={"language": "english", "task": "transcribe"},
+                generate_kwargs={},
             )
 
     def transcribe(self, audio: np.ndarray, sample_rate: int) -> str:

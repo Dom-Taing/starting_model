@@ -4,6 +4,7 @@ import sys
 from audio_utils import AudioPreprocessor
 from models.asr.wav2vec2 import Wav2Vec2ASR
 from models.asr.whisper import WhisperASR
+from models.asr.whisper_finetuned import FinetunedWhisperASR
 from models.tts.piper import PiperTTS
 from models.tts.voxcpm import VoxCPMTTS
 from pipeline import SpeechPipeline
@@ -17,6 +18,11 @@ def build_pipeline(args) -> SpeechPipeline:
         asr = Wav2Vec2ASR(device=device)
     elif args.asr == "whisper":
         asr = WhisperASR(device=device)
+    elif args.asr == "whisper-finetuned":
+        if not args.whisper_model:
+            print("--whisper-model is required when using --asr whisper-finetuned", file=sys.stderr)
+            sys.exit(1)
+        asr = FinetunedWhisperASR(model_path=args.whisper_model, device=device)
     else:
         print(f"Unknown ASR model: {args.asr}", file=sys.stderr)
         sys.exit(1)
@@ -48,7 +54,7 @@ def build_pipeline(args) -> SpeechPipeline:
 
 def main():
     parser = argparse.ArgumentParser(description="Speech pipeline: ASR + TTS")
-    parser.add_argument("--asr", choices=["wav2vec2", "whisper"], default="wav2vec2",
+    parser.add_argument("--asr", choices=["wav2vec2", "whisper", "whisper-finetuned"], default="wav2vec2",
                         help="ASR model to use (default: wav2vec2)")
     parser.add_argument("--tts", choices=["piper", "voxcpm", "none"], default="piper",
                         help="TTS model to use (default: piper)")
@@ -64,6 +70,9 @@ def main():
                         help="Chunk duration for realtime mode in seconds (default: 3.0)")
     parser.add_argument("--gpu", action="store_true",
                         help="Use GPU (device=0) for ASR")
+    parser.add_argument("--whisper-model", default=None,
+                        metavar="PATH",
+                        help="Path to fine-tuned Whisper model directory (required for --asr whisper-finetuned)")
     parser.add_argument("--piper-model", default="voice_model/en_US-lessac-medium.onnx",
                         metavar="PATH", help="Path to Piper ONNX model")
     parser.add_argument("--voxcpm-url", default="http://localhost:8080",

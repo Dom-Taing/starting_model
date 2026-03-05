@@ -142,7 +142,21 @@ python python/main.py --mode file --input Audio/test_1.wav
 python python/main.py --asr whisper
 ```
 
-Whisper handles accents and noisier audio better than wav2vec2 at the cost of slightly higher latency. The default variant is `openai/whisper-tiny` (39M parameters, English-only transcription mode).
+Whisper handles accents and noisier audio better than wav2vec2 at the cost of slightly higher latency. The default variant is `openai/whisper-tiny.en` (39M parameters, English-only model).
+
+### Use a fine-tuned Whisper model
+
+If you have trained a custom Whisper model (e.g. on Google Colab), unzip the checkpoint directory and use `--asr whisper-finetuned` with `--whisper-model` pointing at it:
+
+```bash
+# Unzip your downloaded checkpoint
+unzip whisper-finetuned.zip -d models/whisper-finetuned
+
+# Run with the local fine-tuned model
+python python/main.py --asr whisper-finetuned --whisper-model models/whisper-finetuned
+```
+
+The directory must contain the standard HuggingFace checkpoint files (`config.json`, `pytorch_model.bin` or `model.safetensors`, `tokenizer.json`, etc.) as saved by `trainer.save_model()` or `model.save_pretrained()`.
 
 ### Use GPU for faster ASR
 
@@ -171,9 +185,10 @@ python python/main.py --mode file --input Audio/test_1.wav --autocorrect
 ### All options
 
 ```
-usage: main.py [-h] [--asr {wav2vec2,whisper}] [--tts {piper,voxcpm,none}]
+usage: main.py [-h] [--asr {wav2vec2,whisper,whisper-finetuned}] [--tts {piper,voxcpm,none}]
                [--mode {realtime,file,stream}] [--input PATH] [--output PATH]
                [--sample-rate INT] [--chunk-duration FLOAT] [--gpu]
+               [--whisper-model PATH_OR_ID]
                [--piper-model PATH] [--voxcpm-url URL] [--autocorrect]
                [--silence-threshold RMS] [--trailing-silence SECS]
                [--min-speech SECS]
@@ -184,7 +199,8 @@ usage: main.py [-h] [--asr {wav2vec2,whisper}] [--tts {piper,voxcpm,none}]
 | Model | Size | Speed | Notes |
 |---|---|---|---|
 | `wav2vec2` | ~360MB | Fast | Good for clean, clear speech |
-| `whisper` | ~39MB (tiny) | Moderate | Better accent/noise robustness |
+| `whisper` | ~39MB (tiny.en) | Moderate | Better accent/noise robustness, English-only |
+| `whisper-finetuned` + `--whisper-model PATH` | varies | Moderate | Local fine-tuned checkpoint |
 
 ---
 
