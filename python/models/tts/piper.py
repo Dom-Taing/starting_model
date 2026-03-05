@@ -4,7 +4,7 @@ from .base import TTSModel
 
 
 class PiperTTS(TTSModel):
-    def __init__(self, model_path: str = "voice_model/en_US-lessac-medium.onnx"):
+    def __init__(self, model_path: str = "voice_model/en_US-hfc_male-medium.onnx"):
         self.model_path = model_path
         self._voice = None
 

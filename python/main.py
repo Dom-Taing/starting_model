@@ -73,7 +73,7 @@ def main():
     parser.add_argument("--whisper-model", default=None,
                         metavar="PATH",
                         help="Path to fine-tuned Whisper model directory (required for --asr whisper-finetuned)")
-    parser.add_argument("--piper-model", default="voice_model/en_US-lessac-medium.onnx",
+    parser.add_argument("--piper-model", default="voice_model/en_US-hfc_male-medium.onnx",
                         metavar="PATH", help="Path to Piper ONNX model")
     parser.add_argument("--voxcpm-url", default="http://localhost:8080",
                         metavar="URL", help="VoxCPM server URL")

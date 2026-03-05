@@ -177,6 +177,9 @@ class SpeechPipeline:
         )
         utterance_queue: queue.Queue = queue.Queue()
         stop_event = threading.Event()
+        # Half-duplex gate: set while TTS is playing so the mic callback
+        # drops incoming audio and avoids feeding speaker output back into ASR.
+        playing_event = threading.Event()
 
         def stop_on_enter():
             input()
@@ -189,8 +192,14 @@ class SpeechPipeline:
                 except queue.Empty:
                     continue
                 try:
+                    t_start = time.time()
+
                     processed = self.audio_preprocessor.process(audio, self.sample_rate)
+
+                    t_asr = time.time()
                     text = self.asr.transcribe(processed, self.sample_rate).strip()
+                    asr_ms = (time.time() - t_asr) * 1000
+
                     if not text:
                         continue
                     if self.text_processor:
@@ -201,13 +210,25 @@ class SpeechPipeline:
                     tmp_path = tmp.name
                     tmp.close()
 
+                    t_tts = time.time()
                     self.tts.synthesize(text, tmp_path)
+                    tts_ms = (time.time() - t_tts) * 1000
+
+                    e2e_ms = (time.time() - t_start) * 1000
+                    print(f"[latency] ASR {asr_ms:.0f}ms | TTS {tts_ms:.0f}ms | E2E {e2e_ms:.0f}ms")
+
                     data, sr = sf.read(tmp_path, dtype="float32")
+                    playing_event.set()
                     sd.play(data, sr)
                     sd.wait()
+                    # Brief cooldown so room reverb settles before re-opening mic.
+                    time.sleep(0.15)
+                    playing_event.clear()
+                    segmenter.reset()
                     os.unlink(tmp_path)
                 except Exception as e:
                     print(f"[worker error] {e}")
+                    playing_event.clear()
 
         input_thread = threading.Thread(target=stop_on_enter, daemon=True)
         input_thread.start()
@@ -218,6 +239,9 @@ class SpeechPipeline:
         def audio_callback(indata, frames, time_info, status):
             if status:
                 print(f"Audio status: {status}")
+            # Drop mic audio while TTS is playing to prevent feedback.
+            if playing_event.is_set():
+                return
             segmenter.push(indata)
             utterance = segmenter.emit()
             if utterance is not None:

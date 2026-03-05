@@ -86,7 +86,7 @@ pip install -r requirements.txt
 
 # 4. Download Piper ONNX voice model
 mkdir -p voice_model
-# Download en_US-lessac-medium.onnx and its .json config into voice_model/
+# Download en_US-hfc_male-medium.onnx and its .json config into voice_model/
 # Source: https://github.com/rhasspy/piper/releases
 
 # 5. (Optional) Download SymSpell dictionary for --autocorrect
