@@ -6,7 +6,6 @@ import noisereduce as nr
 import numpy as np
 import scipy.io.wavfile as wavfile
 import sounddevice as sd
-from scipy.signal import butter, sosfilt
 
 
 class AudioPreprocessor:
@@ -14,46 +13,34 @@ class AudioPreprocessor:
     Preprocessing stage applied to raw audio before it reaches the ASR model.
 
     Current steps:
-      1. Band-pass filter — keeps the speech frequency band (80 Hz – 8 kHz),
-         removing low-frequency rumble (HVAC, handling noise) and high-frequency
-         hiss simultaneously. Uses a 4th-order Butterworth filter, which has a
-         maximally flat passband (no ripple) before rolling off outside the band.
-
-         Why not just a low-pass?
-         A low-pass alone would attenuate high-frequency consonants (s, f, t, sh
-         live at 3–8 kHz), hurting transcription accuracy. The band-pass cuts
-         noise on both ends while leaving the full speech band intact.
+      1. Background noise reduction via noisereduce (spectral subtraction).
+      2. RMS normalization — scales audio so the root-mean-square level matches
+         a target, making speech volume consistent regardless of mic distance.
 
     Future steps (TODO):
       - Voice activity detection: skip silent chunks before ASR
-      - Dynamic range normalisation: consistent loudness across recordings
       - Resampling guard: ensure sr matches model expectations
     """
 
     def __init__(
         self,
-        highpass_hz: float = 80.0,
-        lowpass_hz: float = 8000.0,
-        filter_order: int = 4,
+        target_rms: float = 0.1,
         debug: bool = False,
     ):
-        self.highpass_hz = highpass_hz
-        self.lowpass_hz = lowpass_hz
-        self.filter_order = filter_order
+        self.target_rms = target_rms
         self.debug = debug
 
-    def _bandpass(self, audio: np.ndarray, sample_rate: int) -> np.ndarray:
-        nyquist = sample_rate / 2.0
-        low = self.highpass_hz / nyquist
-        high = min(self.lowpass_hz / nyquist, 0.9999)
-        sos = butter(self.filter_order, [low, high], btype="band", output="sos")
-        return sosfilt(sos, audio).astype(np.float32)
+    def _rms_normalize(self, audio: np.ndarray) -> np.ndarray:
+        rms = np.sqrt(np.mean(audio ** 2))
+        if rms < 1e-9:
+            return audio  # silence — don't amplify noise
+        return (audio * (self.target_rms / rms)).astype(np.float32)
 
     def process(self, audio: np.ndarray, sample_rate: int) -> np.ndarray:
         if self.debug:
             raw = audio.copy()
-        audio = self._bandpass(audio, sample_rate)
         audio = nr.reduce_noise(y=audio, sr=sample_rate).astype(np.float32)
+        audio = self._rms_normalize(audio)
         if self.debug:
             wavfile.write("debug_raw.wav", sample_rate, raw)
             wavfile.write("debug_filtered.wav", sample_rate, audio)
