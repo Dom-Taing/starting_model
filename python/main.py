@@ -85,6 +85,8 @@ def main():
                         metavar="SECS", help="Seconds of silence that ends an utterance (default: 0.8)")
     parser.add_argument("--min-speech", type=float, default=0.3,
                         metavar="SECS", help="Minimum speech duration to accept (default: 0.3)")
+    parser.add_argument("--max-utterance", type=float, default=10.0,
+                        metavar="SECS", help="Maximum utterance duration before forced emit (default: 10.0)")
     parser.add_argument("--debug-audio", action="store_true",
                         help="Save raw and filtered audio to debug_raw.wav / debug_filtered.wav (debug only)")
 
@@ -108,6 +110,7 @@ def main():
             silence_threshold=args.silence_threshold,
             trailing_silence_s=args.trailing_silence,
             min_speech_duration_s=args.min_speech,
+            max_utterance_s=args.max_utterance,
         )
     else:
         result = pipeline.realtime_transcription(chunk_duration=args.chunk_duration)

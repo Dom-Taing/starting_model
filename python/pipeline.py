@@ -160,6 +160,7 @@ class SpeechPipeline:
         silence_threshold: float = 0.01,
         trailing_silence_s: float = 0.8,
         min_speech_duration_s: float = 0.3,
+        max_utterance_s: float = 10.0,
     ) -> None:
         if self.tts is None:
             raise ValueError("stream() requires a TTS model — pass --tts piper or --tts voxcpm")
@@ -174,6 +175,7 @@ class SpeechPipeline:
             silence_threshold=silence_threshold,
             min_speech_duration_s=min_speech_duration_s,
             trailing_silence_s=trailing_silence_s,
+            max_utterance_s=max_utterance_s,
         )
         utterance_queue: queue.Queue = queue.Queue()
         stop_event = threading.Event()

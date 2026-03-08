@@ -20,11 +20,13 @@ class UtteranceSegmenter:
         silence_threshold: float = 0.01,
         min_speech_duration_s: float = 0.3,
         trailing_silence_s: float = 0.8,
+        max_utterance_s: float = 10.0,
     ):
         self.sample_rate = sample_rate
         self.silence_threshold = silence_threshold
         self.min_speech_frames = int(min_speech_duration_s * sample_rate)
         self.required_trailing_frames = int(trailing_silence_s * sample_rate)
+        self.max_utterance_frames = int(max_utterance_s * sample_rate)
 
         self._state = self._IDLE
         self._buffer: list[np.ndarray] = []
@@ -51,6 +53,13 @@ class UtteranceSegmenter:
             else:
                 self._state = self._TRAILING
                 self._trailing_frames = n
+            total_frames = sum(len(b) for b in self._buffer)
+            if total_frames >= self.max_utterance_frames:
+                self._maybe_emit()
+                self._state = self._IDLE
+                self._buffer = []
+                self._speech_frames = 0
+                self._trailing_frames = 0
 
         elif self._state == self._TRAILING:
             self._buffer.append(samples)
@@ -67,6 +76,13 @@ class UtteranceSegmenter:
                     self._buffer = []
                     self._speech_frames = 0
                     self._trailing_frames = 0
+            total_frames = sum(len(b) for b in self._buffer)
+            if total_frames >= self.max_utterance_frames:
+                self._maybe_emit()
+                self._state = self._IDLE
+                self._buffer = []
+                self._speech_frames = 0
+                self._trailing_frames = 0
 
     def emit(self) -> Optional[np.ndarray]:
         """Returns the completed utterance once, then None."""
