@@ -40,6 +40,7 @@ output.wav
 # Model files (these are large, download separately)
 *.onnx
 *.onnx.json
+/models/
 
 # Logs
 *.log
