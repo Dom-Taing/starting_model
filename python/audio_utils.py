@@ -2,6 +2,7 @@ import tempfile
 import threading
 import time
 import noisereduce as nr
+import pyloudnorm as pyln
 
 import numpy as np
 import scipy.io.wavfile as wavfile
@@ -14,33 +15,60 @@ class AudioPreprocessor:
 
     Current steps:
       1. Background noise reduction via noisereduce (spectral subtraction).
-      2. RMS normalization — scales audio so the root-mean-square level matches
-         a target, making speech volume consistent regardless of mic distance.
+      2. Silence trimming — removes leading/trailing silence based on RMS energy,
+         with a small configurable pad preserved as headroom. Internal pauses
+         are left intact.
+      3. LUFS normalization — scales audio to -20 LUFS (ITU-R BS.1770) to match
+         the loudness level used during model training, ensuring consistent input
+         regardless of mic distance.
 
     Future steps (TODO):
-      - Voice activity detection: skip silent chunks before ASR
       - Resampling guard: ensure sr matches model expectations
     """
 
     def __init__(
         self,
-        target_rms: float = 0.1,
+        target_lufs: float = -20.0,
+        silence_threshold_dbfs: float = -50.0,
+        silence_pad_s: float = 0.1,
         debug: bool = False,
     ):
-        self.target_rms = target_rms
+        self.target_lufs = target_lufs
+        self.silence_threshold_dbfs = silence_threshold_dbfs
+        self.silence_pad_s = silence_pad_s
         self.debug = debug
 
-    def _rms_normalize(self, audio: np.ndarray) -> np.ndarray:
-        rms = np.sqrt(np.mean(audio ** 2))
-        if rms < 1e-9:
-            return audio  # silence — don't amplify noise
-        return (audio * (self.target_rms / rms)).astype(np.float32)
+    def _trim_silence(self, audio: np.ndarray, sample_rate: int) -> np.ndarray:
+        # Convert dBFS threshold to linear RMS: rms = 10^(dBFS/20)
+        threshold = 10 ** (self.silence_threshold_dbfs / 20)
+        win = max(1, int(0.01 * sample_rate))  # 10ms windows
+        rms = np.array([
+            np.sqrt(np.mean(audio[i:i + win] ** 2))
+            for i in range(0, len(audio), win)
+        ])
+        speech_windows = np.where(rms > threshold)[0]
+        if len(speech_windows) == 0:
+            return audio  # all silence — leave untouched
+
+        pad_frames = int(self.silence_pad_s * sample_rate)
+        start = max(0, speech_windows[0] * win - pad_frames)
+        end   = min(len(audio), speech_windows[-1] * win + win + pad_frames)
+        return audio[start:end]
+
+    def _lufs_normalize(self, audio: np.ndarray, sample_rate: int) -> np.ndarray:
+        meter = pyln.Meter(sample_rate)  # ITU-R BS.1770
+        loudness = meter.integrated_loudness(audio.astype(np.float64))
+        if not np.isfinite(loudness):
+            return audio  # silence or too short to measure — skip
+        normalized = pyln.normalize.loudness(audio.astype(np.float64), loudness, self.target_lufs)
+        return np.clip(normalized, -1.0, 1.0).astype(np.float32)
 
     def process(self, audio: np.ndarray, sample_rate: int) -> np.ndarray:
         if self.debug:
             raw = audio.copy()
         audio = nr.reduce_noise(y=audio, sr=sample_rate).astype(np.float32)
-        audio = self._rms_normalize(audio)
+        audio = self._trim_silence(audio, sample_rate)
+        audio = self._lufs_normalize(audio, sample_rate)
         if self.debug:
             wavfile.write("debug_raw.wav", sample_rate, raw)
             wavfile.write("debug_filtered.wav", sample_rate, audio)
