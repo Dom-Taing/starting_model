@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audio Clipper</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #0e0e0e;
+    --surface: #181818;
+    --border: #2a2a2a;
+    --accent: #e8ff47;
+    --accent2: #ff6b35;
+    --text: #f0f0f0;
+    --muted: #666;
+    --clip-h: 48px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+
+  header {
+    padding: 24px 32px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+  }
+
+  header h1 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    color: var(--accent);
+  }
+
+  header span {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 0;
+    height: calc(100vh - 65px);
+  }
+
+  .left {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  /* Drop zone */
+  .drop-zone {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    border: 1.5px dashed var(--border);
+    margin: 32px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(232,255,71,0.03);
+  }
+
+  .drop-zone .icon {
+    font-size: 48px;
+    opacity: 0.3;
+  }
+
+  .drop-zone p {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.8;
+  }
+
+  .drop-zone p strong {
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  .drop-zone input[type=file] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Player area */
+  .player-area {
+    display: none;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .player-area.visible { display: flex; }
+
+  .file-info {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .file-info .fname {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--accent);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .file-info .dur {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* Waveform / timeline */
+  .timeline-wrap {
+    padding: 20px 24px 0;
+    position: relative;
+  }
+
+  #waveform-canvas {
+    width: 100%;
+    height: 80px;
+    display: block;
+    border-radius: 2px;
+    cursor: pointer;
+  }
+
+  .progress-bar-wrap {
+    position: relative;
+    height: 4px;
+    background: var(--border);
+    margin-top: 8px;
+    border-radius: 2px;
+    cursor: pointer;
+  }
+
+  #progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.05s linear;
+    pointer-events: none;
+  }
+
+  .marker-layer {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+  }
+
+  .marker-line {
+    position: absolute;
+    top: -76px;
+    width: 2px;
+    height: 84px;
+    background: var(--accent2);
+    transform: translateX(-50%);
+    pointer-events: all;
+    cursor: pointer;
+  }
+
+  .marker-line::after {
+    content: '✕';
+    position: absolute;
+    top: -16px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 9px;
+    color: var(--accent2);
+    background: var(--bg);
+    padding: 1px 3px;
+    border-radius: 2px;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+
+  .marker-line:hover::after { opacity: 1; }
+
+  /* Time display */
+  .time-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 24px 0;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  #current-time {
+    color: var(--accent);
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 7px 14px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: all 0.15s;
+  }
+
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .btn.primary {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+
+  .btn.primary:hover { background: #d4eb2a; }
+
+  .btn.danger { border-color: #333; }
+  .btn.danger:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  #play-btn {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    border-radius: 50%;
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  #play-btn:hover { background: var(--accent); color: #000; }
+
+  .spacebar-hint {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: auto;
+  }
+
+  .speed-group {
+    display: flex;
+    gap: 3px;
+    margin-left: 4px;
+  }
+
+  .speed-btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 5px 9px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.3px;
+  }
+
+  .speed-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .speed-btn.active {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+
+  .spacebar-hint kbd {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 2px 6px;
+    font-size: 10px;
+    color: var(--accent);
+  }
+
+  /* Clips list (right panel) */
+  .right {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .panel-header h2 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  #clip-count {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  .clips-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+
+  .clips-list::-webkit-scrollbar { width: 4px; }
+  .clips-list::-webkit-scrollbar-track { background: transparent; }
+  .clips-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .clip-item {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+  }
+
+  .clip-item:hover { background: var(--surface); }
+
+  .clip-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-align: right;
+  }
+
+  .clip-range {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  .clip-range small {
+    display: block;
+    color: var(--muted);
+    font-size: 10px;
+  }
+
+  .clip-del {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 4px;
+    border-radius: 2px;
+    transition: color 0.15s;
+  }
+
+  .clip-del:hover { color: var(--accent2); }
+
+  .empty-state {
+    padding: 40px 20px;
+    text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 2;
+  }
+
+  /* Export panel */
+  .export-panel {
+    padding: 16px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .export-panel .stats {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.8;
+  }
+
+  .export-panel .stats span { color: var(--accent); }
+
+  /* Flash on mark */
+  @keyframes flash {
+    0%   { background: rgba(255,107,53,0.15); }
+    100% { background: transparent; }
+  }
+
+  .flash { animation: flash 0.3s ease-out; }
+
+  /* Progress overlay for export */
+  #export-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 16px;
+    z-index: 100;
+  }
+
+  #export-overlay.visible { display: flex; }
+
+  #export-overlay p {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: var(--accent);
+  }
+
+  #export-overlay .sub {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .spinner {
+    width: 32px;
+    height: 32px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>AUDIO CLIPPER</h1>
+  <span>For Whisper fine-tuning data prep</span>
+</header>
+
+<div class="main">
+  <!-- LEFT: player -->
+  <div class="left">
+
+    <!-- Drop zone -->
+    <div class="drop-zone" id="drop-zone">
+      <div class="icon">🎙</div>
+      <p>
+        Drop your <strong>M4A / WAV / MP3</strong> file here<br>
+        or click to browse
+      </p>
+      <input type="file" id="file-input" accept="audio/*">
+    </div>
+
+    <!-- Player (hidden until file loaded) -->
+    <div class="player-area" id="player-area">
+
+      <div class="file-info">
+        <div class="fname" id="fname">—</div>
+        <div class="dur" id="total-dur">—</div>
+      </div>
+
+      <div class="timeline-wrap">
+        <canvas id="waveform-canvas"></canvas>
+        <div class="progress-bar-wrap" id="progress-bar">
+          <div id="progress-fill"></div>
+          <div class="marker-layer" id="marker-layer"></div>
+        </div>
+      </div>
+
+      <div class="time-row">
+        <span id="current-time">0:00.0</span>
+        <span id="end-time">—</span>
+      </div>
+
+      <div class="controls">
+        <button class="btn" id="play-btn" title="Play/Pause (Space)">▶</button>
+        <button class="btn" id="mark-btn" title="Mark split point (Space while playing)">
+          ✦ MARK SPLIT
+        </button>
+        <button class="btn danger" id="clear-btn">CLEAR ALL</button>
+        <div class="speed-group" id="speed-group">
+          <button class="speed-btn active" data-rate="1">1×</button>
+          <button class="speed-btn" data-rate="1.5">1.5×</button>
+          <button class="speed-btn" data-rate="2">2×</button>
+          <button class="speed-btn" data-rate="2.5">2.5×</button>
+        </div>
+        <span class="spacebar-hint">
+          <kbd>SPACE</kbd> to play/pause &amp; mark
+        </span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- RIGHT: clips -->
+  <div class="right">
+    <div class="panel-header">
+      <h2>Clips</h2>
+      <span id="clip-count">0</span>
+    </div>
+
+    <div class="clips-list" id="clips-list">
+      <div class="empty-state" id="empty-state">
+        Load an audio file,<br>
+        then press <kbd style="background:#1a1a1a;border:1px solid #333;border-radius:3px;padding:1px 5px;color:#e8ff47;font-size:10px">SPACE</kbd> while playing<br>
+        to mark split points.
+      </div>
+    </div>
+
+    <div class="export-panel">
+      <div class="stats" id="stats">
+        <span id="stat-clips">0</span> clips &nbsp;·&nbsp;
+        <span id="stat-dur">0s</span> total
+      </div>
+      <button class="btn primary" id="export-btn" disabled>
+        ⬇ EXPORT CLIPS + CSV
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Export overlay -->
+<div id="export-overlay">
+  <div class="spinner"></div>
+  <p id="export-msg">Exporting clips...</p>
+  <p class="sub" id="export-sub">Please wait</p>
+</div>
+
+<script>
+// ─── State ───────────────────────────────────────────────
+let audioCtx = null;
+let audioBuffer = null;
+let sourceNode = null;
+let isPlaying = false;
+let startTime = 0;       // audioCtx.currentTime when playback started
+let pauseOffset = 0;     // seconds into the buffer when paused
+let markers = [];        // sorted list of marker times in seconds
+let animFrame = null;
+let fileName = '';
+let waveformData = [];
+let playbackRate = 1.0;
+
+// ─── Elements ────────────────────────────────────────────
+const dropZone    = document.getElementById('drop-zone');
+const fileInput   = document.getElementById('file-input');
+const playerArea  = document.getElementById('player-area');
+const playBtn     = document.getElementById('play-btn');
+const markBtn     = document.getElementById('mark-btn');
+const clearBtn    = document.getElementById('clear-btn');
+const exportBtn   = document.getElementById('export-btn');
+const progressBar = document.getElementById('progress-bar');
+const progressFill= document.getElementById('progress-fill');
+const markerLayer = document.getElementById('marker-layer');
+const clipsList   = document.getElementById('clips-list');
+const emptyState  = document.getElementById('empty-state');
+const clipCount   = document.getElementById('clip-count');
+const statClips   = document.getElementById('stat-clips');
+const statDur     = document.getElementById('stat-dur');
+const currentTime = document.getElementById('current-time');
+const endTime     = document.getElementById('end-time');
+const fnameEl     = document.getElementById('fname');
+const totalDurEl  = document.getElementById('total-dur');
+const canvas      = document.getElementById('waveform-canvas');
+const ctx2d       = canvas.getContext('2d');
+const exportOverlay = document.getElementById('export-overlay');
+const exportMsg   = document.getElementById('export-msg');
+const exportSub   = document.getElementById('export-sub');
+
+// ─── File loading ─────────────────────────────────────────
+fileInput.addEventListener('change', e => loadFile(e.target.files[0]));
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+
+async function loadFile(file) {
+  if (!file) return;
+  fileName = file.name.replace(/\.[^.]+$/, '');
+  fnameEl.textContent = file.name;
+
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const arrayBuf = await file.arrayBuffer();
+  audioBuffer = await audioCtx.decodeAudioData(arrayBuf);
+
+  totalDurEl.textContent = formatTime(audioBuffer.duration);
+  endTime.textContent = formatTime(audioBuffer.duration);
+  pauseOffset = 0;
+  markers = [];
+
+  dropZone.style.display = 'none';
+  playerArea.classList.add('visible');
+
+  drawWaveform();
+  renderClips();
+}
+
+// ─── Waveform ─────────────────────────────────────────────
+function drawWaveform() {
+  const W = canvas.offsetWidth * window.devicePixelRatio;
+  const H = canvas.offsetHeight * window.devicePixelRatio;
+  canvas.width = W;
+  canvas.height = H;
+
+  const data = audioBuffer.getChannelData(0);
+  const step = Math.ceil(data.length / (W / window.devicePixelRatio));
+  waveformData = [];
+  for (let i = 0; i < W / window.devicePixelRatio; i++) {
+    let max = 0;
+    for (let j = 0; j < step; j++) {
+      const v = Math.abs(data[i * step + j] || 0);
+      if (v > max) max = v;
+    }
+    waveformData.push(max);
+  }
+
+  renderWaveframe(0);
+}
+
+function renderWaveframe(currentSec) {
+  if (!audioBuffer) return;
+  const W = canvas.width;
+  const H = canvas.height;
+  const dpr = window.devicePixelRatio;
+  const progress = currentSec / audioBuffer.duration;
+
+  ctx2d.clearRect(0, 0, W, H);
+
+  for (let i = 0; i < waveformData.length; i++) {
+    const x = i * dpr;
+    const amp = waveformData[i];
+    const barH = Math.max(2, amp * H * 0.85);
+    const y = (H - barH) / 2;
+
+    ctx2d.fillStyle = (i / waveformData.length) < progress
+      ? 'rgba(232,255,71,0.9)'
+      : 'rgba(255,255,255,0.12)';
+    ctx2d.fillRect(x, y, Math.max(1, dpr - 0.5), barH);
+  }
+}
+
+// ─── Playback ─────────────────────────────────────────────
+function play() {
+  if (!audioBuffer) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+
+  sourceNode = audioCtx.createBufferSource();
+  sourceNode.buffer = audioBuffer;
+  sourceNode.playbackRate.value = playbackRate;
+  sourceNode.connect(audioCtx.destination);
+  sourceNode.start(0, pauseOffset);
+  startTime = audioCtx.currentTime - pauseOffset / playbackRate;
+  isPlaying = true;
+  playBtn.textContent = '⏸';
+
+  sourceNode.onended = () => {
+    if (isPlaying) {
+      pauseOffset = 0;
+      isPlaying = false;
+      playBtn.textContent = '▶';
+      cancelAnimationFrame(animFrame);
+      updateUI(0);
+    }
+  };
+
+  tick();
+}
+
+function pause() {
+  if (!isPlaying) return;
+  pauseOffset = (audioCtx.currentTime - startTime) * playbackRate;
+  sourceNode.stop();
+  isPlaying = false;
+  playBtn.textContent = '▶';
+  cancelAnimationFrame(animFrame);
+}
+
+function tick() {
+  const elapsed = (audioCtx.currentTime - startTime) * playbackRate;
+  updateUI(elapsed);
+  if (elapsed < audioBuffer.duration) {
+    animFrame = requestAnimationFrame(tick);
+  }
+}
+
+function updateUI(elapsed) {
+  const pct = Math.min(elapsed / audioBuffer.duration * 100, 100);
+  progressFill.style.width = pct + '%';
+  currentTime.textContent = formatTime(elapsed);
+  renderWaveframe(elapsed);
+}
+
+function getCurrentTime() {
+  if (!audioBuffer) return 0;
+  if (isPlaying) return (audioCtx.currentTime - startTime) * playbackRate;
+  return pauseOffset;
+}
+
+// Seek on progress bar click
+progressBar.addEventListener('click', e => {
+  if (!audioBuffer) return;
+  const rect = progressBar.getBoundingClientRect();
+  const pct = (e.clientX - rect.left) / rect.width;
+  const seekTo = pct * audioBuffer.duration;
+  if (isPlaying) { pause(); pauseOffset = seekTo; play(); }
+  else { pauseOffset = seekTo; updateUI(seekTo); }
+});
+
+// Seek on waveform click
+canvas.addEventListener('click', e => {
+  if (!audioBuffer) return;
+  const rect = canvas.getBoundingClientRect();
+  const pct = (e.clientX - rect.left) / rect.width;
+  const seekTo = pct * audioBuffer.duration;
+  if (isPlaying) { pause(); pauseOffset = seekTo; play(); }
+  else { pauseOffset = seekTo; updateUI(seekTo); }
+});
+
+// ─── Controls ─────────────────────────────────────────────
+playBtn.addEventListener('click', () => isPlaying ? pause() : play());
+
+markBtn.addEventListener('click', () => addMarker());
+
+clearBtn.addEventListener('click', () => {
+  markers = [];
+  renderClips();
+  renderMarkers();
+});
+
+document.querySelectorAll('.speed-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    playbackRate = parseFloat(btn.dataset.rate);
+    document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    // If currently playing, restart at new speed from current position
+    if (isPlaying) {
+      pause();
+      play();
+    }
+  });
+});
+
+// SPACE = play/pause + mark if playing
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && audioBuffer) {
+    e.preventDefault();
+    if (isPlaying) {
+      addMarker();
+    } else {
+      play();
+    }
+  }
+});
+
+function addMarker() {
+  const t = getCurrentTime();
+  if (!audioBuffer || t <= 0 || t >= audioBuffer.duration) return;
+
+  // Don't add if too close to existing marker (within 0.5s)
+  const tooClose = markers.some(m => Math.abs(m - t) < 0.5);
+  if (tooClose) return;
+
+  markers.push(t);
+  markers.sort((a, b) => a - b);
+  renderClips();
+  renderMarkers();
+
+  // Flash feedback
+  document.body.classList.remove('flash');
+  void document.body.offsetWidth;
+  document.body.classList.add('flash');
+}
+
+// ─── Markers on progress bar ──────────────────────────────
+function renderMarkers() {
+  markerLayer.innerHTML = '';
+  markers.forEach((t, i) => {
+    const pct = t / audioBuffer.duration * 100;
+    const line = document.createElement('div');
+    line.className = 'marker-line';
+    line.style.left = pct + '%';
+    line.title = `Remove marker at ${formatTime(t)}`;
+    line.addEventListener('click', e => {
+      e.stopPropagation();
+      markers.splice(i, 1);
+      renderClips();
+      renderMarkers();
+    });
+    markerLayer.appendChild(line);
+  });
+}
+
+// ─── Clips list ───────────────────────────────────────────
+function getClipSegments() {
+  if (!audioBuffer) return [];
+  const points = [0, ...markers, audioBuffer.duration];
+  const segs = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const start = points[i];
+    const end   = points[i + 1];
+    const dur   = end - start;
+    if (dur >= 1) segs.push({ start, end, dur });
+  }
+  return segs;
+}
+
+function renderClips() {
+  const segs = getClipSegments();
+  clipCount.textContent = segs.length;
+  statClips.textContent = segs.length;
+  const totalSec = segs.reduce((s, c) => s + c.dur, 0);
+  statDur.textContent = formatTime(totalSec);
+  exportBtn.disabled = segs.length === 0;
+
+  if (segs.length === 0) {
+    clipsList.innerHTML = '';
+    clipsList.appendChild(emptyState);
+    return;
+  }
+
+  emptyState.remove();
+  clipsList.innerHTML = '';
+
+  segs.forEach((seg, i) => {
+    const item = document.createElement('div');
+    item.className = 'clip-item';
+
+    const num = document.createElement('div');
+    num.className = 'clip-num';
+    num.textContent = String(i + 1).padStart(3, '0');
+
+    const info = document.createElement('div');
+    info.className = 'clip-range';
+    info.innerHTML = `${formatTime(seg.start)} → ${formatTime(seg.end)}<small>${seg.dur.toFixed(1)}s</small>`;
+
+    // Click to seek to clip start
+    info.style.cursor = 'pointer';
+    info.addEventListener('click', () => {
+      if (isPlaying) { pause(); pauseOffset = seg.start; play(); }
+      else { pauseOffset = seg.start; updateUI(seg.start); }
+    });
+
+    const del = document.createElement('button');
+    del.className = 'clip-del';
+    del.textContent = '✕';
+    del.title = 'Remove this clip boundary';
+    del.addEventListener('click', () => {
+      // Remove the marker that created this boundary
+      if (i < markers.length) {
+        markers.splice(i, 1);
+        renderClips();
+        renderMarkers();
+      }
+    });
+
+    item.append(num, info, del);
+    clipsList.appendChild(item);
+  });
+}
+
+// ─── Export ───────────────────────────────────────────────
+exportBtn.addEventListener('click', async () => {
+  const segs = getClipSegments();
+  if (segs.length === 0) return;
+
+  exportOverlay.classList.add('visible');
+  exportMsg.textContent = 'Preparing export...';
+  exportSub.textContent = `${segs.length} clips`;
+
+  // Small delay to let UI render
+  await sleep(100);
+
+  const JSZip = await loadJSZip();
+  const zip = new JSZip();
+  const clipsFolder = zip.folder('clips');
+
+  let csvRows = [['file_name', 'transcript', 'duration_sec']];
+
+  for (let i = 0; i < segs.length; i++) {
+    const seg = segs[i];
+    const clipName = `clip_${String(i + 1).padStart(4, '0')}.wav`;
+
+    exportMsg.textContent = `Encoding clip ${i + 1} of ${segs.length}`;
+    exportSub.textContent = `${formatTime(seg.start)} → ${formatTime(seg.end)}`;
+    await sleep(0); // yield to UI
+
+    const wavBuffer = extractWav(audioBuffer, seg.start, seg.end);
+    clipsFolder.file(clipName, wavBuffer);
+    csvRows.push([clipName, '', seg.dur.toFixed(2)]);
+  }
+
+  exportMsg.textContent = 'Writing metadata.csv...';
+  await sleep(0);
+
+  const csvContent = csvRows.map(r => r.join(',')).join('\n');
+  zip.file('metadata.csv', csvContent);
+
+  exportMsg.textContent = 'Zipping...';
+  await sleep(0);
+
+  const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${fileName}_clips.zip`;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  exportOverlay.classList.remove('visible');
+});
+
+// ─── WAV encoding ─────────────────────────────────────────
+function extractWav(buffer, startSec, endSec) {
+  const sr = buffer.sampleRate;
+  const startSample = Math.floor(startSec * sr);
+  const endSample   = Math.min(Math.floor(endSec * sr), buffer.length);
+  const numSamples  = endSample - startSample;
+  const numChannels = 1; // mono
+  const bytesPerSample = 2;
+  const dataSize = numSamples * numChannels * bytesPerSample;
+  const ab = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(ab);
+
+  // WAV header
+  writeStr(view, 0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeStr(view, 8, 'WAVE');
+  writeStr(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sr, true);
+  view.setUint32(28, sr * numChannels * bytesPerSample, true);
+  view.setUint16(32, numChannels * bytesPerSample, true);
+  view.setUint16(34, 16, true);
+  writeStr(view, 36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  // Mix to mono if stereo
+  const ch0 = buffer.getChannelData(0);
+  const ch1 = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : null;
+  let offset = 44;
+  for (let i = 0; i < numSamples; i++) {
+    const s0 = ch0[startSample + i] || 0;
+    const s1 = ch1 ? (ch1[startSample + i] || 0) : 0;
+    const sample = ch1 ? (s0 + s1) / 2 : s0;
+    const clamped = Math.max(-1, Math.min(1, sample));
+    view.setInt16(offset, clamped < 0 ? clamped * 0x8000 : clamped * 0x7FFF, true);
+    offset += 2;
+  }
+  return ab;
+}
+
+function writeStr(view, offset, str) {
+  for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+}
+
+// ─── JSZip loader ─────────────────────────────────────────
+function loadJSZip() {
+  return new Promise((resolve, reject) => {
+    if (window.JSZip) { resolve(window.JSZip); return; }
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+    s.onload = () => resolve(window.JSZip);
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+// ─── Utils ────────────────────────────────────────────────
+function formatTime(sec) {
+  if (!sec && sec !== 0) return '—';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  const ms = Math.floor((sec % 1) * 10);
+  return `${m}:${String(s).padStart(2, '0')}.${ms}`;
+}
+
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+</script>
+</body>
+</html>

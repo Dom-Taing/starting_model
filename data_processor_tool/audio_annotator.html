@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Annotation Studio</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+
+:root {
+  --bg: #f5f2eb;
+  --surface: #fffdf8;
+  --surface2: #edeae3;
+  --border: #d8d4ca;
+  --ink: #1a1814;
+  --ink2: #6b6760;
+  --good: #2d6a4f;
+  --good-bg: #d8f3dc;
+  --bad: #9b2226;
+  --bad-bg: #fde8e8;
+  --skip: #7c6a2e;
+  --skip-bg: #fef9e7;
+  --accent: #c0392b;
+  --playing: #1a1814;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'DM Mono', monospace;
+  font-weight: 300;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Header ── */
+header {
+  padding: 14px 28px;
+  background: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-shrink: 0;
+}
+
+header h1 {
+  font-family: 'Syne', sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--bg);
+}
+
+.header-stats {
+  display: flex;
+  gap: 16px;
+  margin-left: auto;
+  align-items: center;
+}
+
+.stat-pill {
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 2px;
+  font-weight: 400;
+}
+
+.stat-pill.good  { background: var(--good-bg);  color: var(--good); }
+.stat-pill.bad   { background: var(--bad-bg);   color: var(--bad); }
+.stat-pill.skip  { background: var(--skip-bg);  color: var(--skip); }
+.stat-pill.total { background: rgba(255,255,255,0.1); color: var(--bg); }
+
+/* ── Load screen ── */
+#load-screen {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.load-box {
+  border: 2px dashed var(--border);
+  border-radius: 4px;
+  padding: 60px 80px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  position: relative;
+}
+
+.load-box:hover, .load-box.drag-over {
+  border-color: var(--ink);
+  background: var(--surface);
+}
+
+.load-box input[type=file] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.load-box .big-icon {
+  font-size: 52px;
+  margin-bottom: 16px;
+  display: block;
+}
+
+.load-box h2 {
+  font-family: 'Syne', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.load-box p {
+  font-size: 11px;
+  color: var(--ink2);
+  line-height: 1.9;
+}
+
+.load-box p strong { color: var(--ink); font-weight: 500; }
+
+.load-hint {
+  font-size: 11px;
+  color: var(--ink2);
+  text-align: center;
+  line-height: 2;
+}
+
+/* ── Main workspace ── */
+#workspace {
+  display: none;
+  flex: 1;
+  overflow: hidden;
+  display: none;
+  grid-template-columns: 300px 1fr;
+}
+
+#workspace.visible {
+  display: grid;
+}
+
+/* ── Clip list (left) ── */
+.clip-list-panel {
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.panel-top {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-top h2 {
+  font-family: 'Syne', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--ink2);
+  flex: 1;
+}
+
+.filter-btns {
+  display: flex;
+  gap: 3px;
+}
+
+.filter-btn {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  padding: 3px 7px;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--ink2);
+  cursor: pointer;
+  transition: all 0.12s;
+  text-transform: uppercase;
+}
+
+.filter-btn.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+.clip-scroll {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.clip-scroll::-webkit-scrollbar { width: 3px; }
+.clip-scroll::-webkit-scrollbar-track { background: transparent; }
+.clip-scroll::-webkit-scrollbar-thumb { background: var(--border); }
+
+.clip-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+  position: relative;
+}
+
+.clip-row:hover { background: var(--bg); }
+
+.clip-row.active {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+.clip-row.active .clip-name,
+.clip-row.active .clip-dur { color: rgba(245,242,235,0.7); }
+
+.clip-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--border);
+}
+
+.clip-row.status-good  .clip-status-dot { background: var(--good); }
+.clip-row.status-bad   .clip-status-dot { background: var(--bad); }
+.clip-row.status-skip  .clip-status-dot { background: var(--skip); }
+
+.clip-name {
+  flex: 1;
+  font-size: 11px;
+  color: var(--ink2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clip-row.active .clip-name { color: var(--bg); }
+
+.clip-dur {
+  font-size: 10px;
+  color: var(--ink2);
+  flex-shrink: 0;
+}
+
+/* Progress bar at bottom of list */
+.list-footer {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--ink2);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.progress-track {
+  flex: 1;
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-fill-bar {
+  height: 100%;
+  background: var(--ink);
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+
+/* ── Annotation panel (right) ── */
+.annotation-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.anno-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 10px;
+  color: var(--ink2);
+  font-size: 12px;
+}
+
+.anno-empty .arrow { font-size: 28px; opacity: 0.3; }
+
+/* Player section */
+.player-section {
+  padding: 20px 28px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.now-playing {
+  font-family: 'Syne', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.now-playing .nav-arrow {
+  font-size: 11px;
+  cursor: pointer;
+  color: var(--ink2);
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  transition: all 0.12s;
+  user-select: none;
+}
+
+.now-playing .nav-arrow:hover { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+.now-playing .clip-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Waveform */
+#anno-waveform {
+  width: 100%;
+  height: 56px;
+  display: block;
+  cursor: pointer;
+  border-radius: 2px;
+  margin-bottom: 8px;
+}
+
+.player-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.play-pause-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s;
+  flex-shrink: 0;
+}
+
+.play-pause-btn:hover, .play-pause-btn.playing {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+.time-display {
+  font-size: 11px;
+  color: var(--ink2);
+  min-width: 80px;
+}
+
+.speed-row {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.spd-btn {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--ink2);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.spd-btn:hover { border-color: var(--ink); color: var(--ink); }
+.spd-btn.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+/* Transcript section */
+.transcript-section {
+  flex: 1;
+  padding: 20px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.transcript-section label {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--ink2);
+  font-weight: 400;
+}
+
+#transcript-input {
+  flex: 1;
+  min-height: 80px;
+  max-height: 160px;
+  padding: 14px 16px;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 3px;
+  font-family: 'DM Mono', monospace;
+  font-size: 14px;
+  font-weight: 300;
+  color: var(--ink);
+  resize: none;
+  line-height: 1.6;
+  transition: border-color 0.15s;
+  outline: none;
+}
+
+#transcript-input:focus { border-color: var(--ink); }
+
+#transcript-input::placeholder { color: var(--border); }
+
+/* Keyboard hint */
+.kbd-hint {
+  font-size: 10px;
+  color: var(--ink2);
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.kbd-hint span { display: flex; align-items: center; gap: 5px; }
+
+kbd {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 1px 6px;
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  color: var(--ink);
+}
+
+/* Quality buttons */
+.quality-section {
+  padding: 16px 28px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.quality-label {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--ink2);
+  margin-right: 4px;
+}
+
+.q-btn {
+  font-family: 'Syne', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 10px 20px;
+  border-radius: 3px;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-transform: uppercase;
+}
+
+.q-btn.good { color: var(--good); border-color: var(--good-bg); }
+.q-btn.good:hover, .q-btn.good.active {
+  background: var(--good-bg);
+  border-color: var(--good);
+}
+
+.q-btn.bad { color: var(--bad); border-color: var(--bad-bg); }
+.q-btn.bad:hover, .q-btn.bad.active {
+  background: var(--bad-bg);
+  border-color: var(--bad);
+}
+
+.q-btn.skip { color: var(--skip); border-color: var(--skip-bg); }
+.q-btn.skip:hover, .q-btn.skip.active {
+  background: var(--skip-bg);
+  border-color: var(--skip);
+}
+
+.save-next-btn {
+  margin-left: auto;
+  font-family: 'Syne', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 10px 22px;
+  border-radius: 3px;
+  border: none;
+  background: var(--ink);
+  color: var(--bg);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-transform: uppercase;
+}
+
+.save-next-btn:hover { background: var(--accent); }
+
+/* Export bar */
+.export-bar {
+  padding: 10px 28px;
+  background: var(--surface2);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.export-bar span {
+  font-size: 11px;
+  color: var(--ink2);
+  flex: 1;
+}
+
+.export-btn {
+  font-family: 'Syne', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 8px 18px;
+  border-radius: 3px;
+  border: 1.5px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.15s;
+}
+
+.export-btn:hover { background: var(--ink); color: var(--bg); }
+
+/* Animations */
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.clip-row { animation: slideIn 0.2s ease both; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.playing-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 1s ease infinite;
+  display: inline-block;
+  margin-right: 4px;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Annotation Studio</h1>
+  <div class="header-stats">
+    <span class="stat-pill total" id="stat-total">0 clips</span>
+    <span class="stat-pill good"  id="stat-good">0 good</span>
+    <span class="stat-pill bad"   id="stat-bad">0 bad</span>
+    <span class="stat-pill skip"  id="stat-skip">0 skip</span>
+  </div>
+</header>
+
+<!-- Load screen -->
+<div id="load-screen">
+  <div class="load-box" id="load-box">
+    <span class="big-icon">📂</span>
+    <h2>Load your clips</h2>
+    <p>
+      Drop the <strong>clips.zip</strong> exported from the clipper tool<br>
+      — or a folder zip containing WAV files + metadata.csv<br>
+      <br>
+      No CSV? WAV files will load with blank transcripts.
+    </p>
+    <input type="file" id="zip-input" accept=".zip">
+  </div>
+  <p class="load-hint">
+    Everything runs in your browser — no upload, no server.<br>
+    <kbd>SPACE</kbd> replay &nbsp;·&nbsp; <kbd>G</kbd> good &nbsp;·&nbsp; <kbd>B</kbd> bad &nbsp;·&nbsp; <kbd>S</kbd> skip &nbsp;·&nbsp; <kbd>ENTER</kbd> save & next
+  </p>
+</div>
+
+<!-- Workspace -->
+<div id="workspace">
+
+  <!-- LEFT: clip list -->
+  <div class="clip-list-panel">
+    <div class="panel-top">
+      <h2>Clips</h2>
+      <div class="filter-btns">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="unlabelled">Todo</button>
+        <button class="filter-btn" data-filter="good">✓</button>
+        <button class="filter-btn" data-filter="bad">✗</button>
+        <button class="filter-btn" data-filter="skip">—</button>
+      </div>
+    </div>
+    <div class="clip-scroll" id="clip-scroll"></div>
+    <div class="list-footer">
+      <span id="progress-text">0 / 0</span>
+      <div class="progress-track">
+        <div class="progress-fill-bar" id="progress-fill-bar" style="width:0%"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: annotation -->
+  <div class="annotation-panel" id="annotation-panel">
+
+    <div class="anno-empty" id="anno-empty">
+      <span class="arrow">←</span>
+      <span>Select a clip to begin annotating</span>
+    </div>
+
+    <div id="anno-content" style="display:none; flex:1; display:none; flex-direction:column; overflow:hidden;">
+
+      <!-- Player -->
+      <div class="player-section">
+        <div class="now-playing">
+          <span class="nav-arrow" id="prev-btn">◀</span>
+          <span class="clip-title" id="clip-title">—</span>
+          <span class="nav-arrow" id="next-btn">▶</span>
+        </div>
+        <canvas id="anno-waveform"></canvas>
+        <div class="player-controls">
+          <button class="play-pause-btn" id="play-btn">▶</button>
+          <span class="time-display" id="time-display">0:00 / 0:00</span>
+          <div class="speed-row">
+            <button class="spd-btn active" data-rate="1">1×</button>
+            <button class="spd-btn" data-rate="1.5">1.5×</button>
+            <button class="spd-btn" data-rate="2">2×</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Transcript -->
+      <div class="transcript-section">
+        <label>Transcript — type what you hear</label>
+        <textarea id="transcript-input" placeholder="Type the transcript here...&#10;&#10;Label what was actually spoken, not the script."></textarea>
+        <div class="kbd-hint">
+          <span><kbd>SPACE</kbd> replay</span>
+          <span><kbd>G</kbd> mark good</span>
+          <span><kbd>B</kbd> mark bad</span>
+          <span><kbd>S</kbd> skip</span>
+          <span><kbd>ENTER</kbd> save &amp; next</span>
+        </div>
+      </div>
+
+      <!-- Quality -->
+      <div class="quality-section">
+        <span class="quality-label">Quality</span>
+        <button class="q-btn good"  id="q-good" title="G">✓ Good</button>
+        <button class="q-btn bad"   id="q-bad"  title="B">✗ Bad</button>
+        <button class="q-btn skip"  id="q-skip" title="S">— Skip</button>
+        <button class="save-next-btn" id="save-next-btn">Save &amp; Next →</button>
+      </div>
+
+    </div>
+
+    <!-- Export bar -->
+    <div class="export-bar">
+      <span id="export-hint">Annotate clips, then export when ready.</span>
+      <button class="export-btn" id="export-good-btn">⬇ Export Good Only</button>
+      <button class="export-btn" id="export-all-btn">⬇ Export All</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── JSZip loader ──────────────────────────────────────────
+function loadJSZip() {
+  return new Promise((resolve, reject) => {
+    if (window.JSZip) { resolve(window.JSZip); return; }
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+    s.onload = () => resolve(window.JSZip);
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+// ── State ─────────────────────────────────────────────────
+let clips = [];         // { name, url, duration, transcript, quality, waveform }
+let currentIdx = -1;
+let audioCtx = null;
+let sourceNode = null;
+let audioBuffer = null;
+let isPlaying = false;
+let startTime = 0;
+let pauseOffset = 0;
+let playbackRate = 1.0;
+let animFrame = null;
+let activeFilter = 'all';
+
+// ── Elements ──────────────────────────────────────────────
+const loadScreen   = document.getElementById('load-screen');
+const loadBox      = document.getElementById('load-box');
+const zipInput     = document.getElementById('zip-input');
+const workspace    = document.getElementById('workspace');
+const clipScroll   = document.getElementById('clip-scroll');
+const annoEmpty    = document.getElementById('anno-empty');
+const annoContent  = document.getElementById('anno-content');
+const clipTitle    = document.getElementById('clip-title');
+const playBtn      = document.getElementById('play-btn');
+const timeDisplay  = document.getElementById('time-display');
+const transcriptInput = document.getElementById('transcript-input');
+const qGood        = document.getElementById('q-good');
+const qBad         = document.getElementById('q-bad');
+const qSkip        = document.getElementById('q-skip');
+const saveNextBtn  = document.getElementById('save-next-btn');
+const prevBtn      = document.getElementById('prev-btn');
+const nextBtn      = document.getElementById('next-btn');
+const canvas       = document.getElementById('anno-waveform');
+const ctx2d        = canvas.getContext('2d');
+const progressText = document.getElementById('progress-text');
+const progressFillBar = document.getElementById('progress-fill-bar');
+const statTotal    = document.getElementById('stat-total');
+const statGood     = document.getElementById('stat-good');
+const statBad      = document.getElementById('stat-bad');
+const statSkip     = document.getElementById('stat-skip');
+const exportHint   = document.getElementById('export-hint');
+
+// ── Load ZIP ──────────────────────────────────────────────
+loadBox.addEventListener('dragover', e => { e.preventDefault(); loadBox.classList.add('drag-over'); });
+loadBox.addEventListener('dragleave', () => loadBox.classList.remove('drag-over'));
+loadBox.addEventListener('drop', e => { e.preventDefault(); loadBox.classList.remove('drag-over'); if (e.dataTransfer.files[0]) handleZip(e.dataTransfer.files[0]); });
+zipInput.addEventListener('change', e => { if (e.target.files[0]) handleZip(e.target.files[0]); });
+
+async function handleZip(file) {
+  const JSZip = await loadJSZip();
+  const zip = await JSZip.loadAsync(file.arrayBuffer ? await file.arrayBuffer() : file);
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  // Find metadata.csv if present
+  let metaMap = {};
+  const csvFile = Object.values(zip.files).find(f => f.name.endsWith('metadata.csv'));
+  if (csvFile) {
+    const csvText = await csvFile.async('string');
+    const rows = csvText.trim().split('\n');
+    const headers = rows[0].split(',');
+    const fnIdx = headers.indexOf('file_name');
+    const trIdx = headers.indexOf('transcript');
+    for (let i = 1; i < rows.length; i++) {
+      const cols = rows[i].split(',');
+      const fn = cols[fnIdx]?.trim();
+      const tr = cols[trIdx]?.trim() || '';
+      if (fn) metaMap[fn] = tr;
+    }
+  }
+
+  // Load WAV files
+  const wavFiles = Object.values(zip.files)
+    .filter(f => f.name.endsWith('.wav') && !f.dir)
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
+  clips = [];
+  for (const wf of wavFiles) {
+    const ab = await wf.async('arraybuffer');
+    const buf = await audioCtx.decodeAudioData(ab.slice(0));
+    const blob = new Blob([ab], { type: 'audio/wav' });
+    const url = URL.createObjectURL(blob);
+    const shortName = wf.name.split('/').pop();
+    clips.push({
+      name: shortName,
+      url,
+      buffer: buf,
+      duration: buf.duration,
+      transcript: metaMap[shortName] || '',
+      quality: null,   // null | 'good' | 'bad' | 'skip'
+      waveform: buildWaveform(buf)
+    });
+  }
+
+  loadScreen.style.display = 'none';
+  workspace.classList.add('visible');
+  renderList();
+  updateStats();
+  if (clips.length > 0) selectClip(0);
+}
+
+// ── Waveform ──────────────────────────────────────────────
+function buildWaveform(buf) {
+  const data = buf.getChannelData(0);
+  const bins = 300;
+  const step = Math.ceil(data.length / bins);
+  const out = [];
+  for (let i = 0; i < bins; i++) {
+    let max = 0;
+    for (let j = 0; j < step; j++) {
+      const v = Math.abs(data[i * step + j] || 0);
+      if (v > max) max = v;
+    }
+    out.push(max);
+  }
+  return out;
+}
+
+function drawWaveform(waveData, progress) {
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth * dpr;
+  const H = canvas.offsetHeight * dpr;
+  canvas.width = W;
+  canvas.height = H;
+  ctx2d.clearRect(0, 0, W, H);
+
+  const bins = waveData.length;
+  const barW = W / bins;
+
+  for (let i = 0; i < bins; i++) {
+    const amp = waveData[i];
+    const barH = Math.max(2 * dpr, amp * H * 0.88);
+    const y = (H - barH) / 2;
+    const pct = i / bins;
+    ctx2d.fillStyle = pct < progress
+      ? 'rgba(26,24,20,0.85)'
+      : 'rgba(26,24,20,0.15)';
+    ctx2d.fillRect(i * barW, y, Math.max(1, barW - 0.5), barH);
+  }
+}
+
+// ── Clip list ─────────────────────────────────────────────
+function filteredClips() {
+  if (activeFilter === 'all') return clips.map((c, i) => ({ c, i }));
+  if (activeFilter === 'unlabelled') return clips.map((c, i) => ({ c, i })).filter(({ c }) => !c.quality);
+  return clips.map((c, i) => ({ c, i })).filter(({ c }) => c.quality === activeFilter);
+}
+
+function renderList() {
+  clipScroll.innerHTML = '';
+  const items = filteredClips();
+  items.forEach(({ c, i }, fi) => {
+    const row = document.createElement('div');
+    row.className = `clip-row${c.quality ? ' status-' + c.quality : ''}${i === currentIdx ? ' active' : ''}`;
+    row.dataset.idx = i;
+    row.style.animationDelay = (fi * 0.015) + 's';
+    row.innerHTML = `
+      <div class="clip-status-dot"></div>
+      <div class="clip-name">${c.name}</div>
+      <div class="clip-dur">${c.duration.toFixed(1)}s</div>
+    `;
+    row.addEventListener('click', () => selectClip(i));
+    clipScroll.appendChild(row);
+  });
+  updateProgress();
+}
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    activeFilter = btn.dataset.filter;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderList();
+  });
+});
+
+// ── Select clip ───────────────────────────────────────────
+function selectClip(idx) {
+  if (idx < 0 || idx >= clips.length) return;
+  stopAudio();
+
+  currentIdx = idx;
+  const clip = clips[idx];
+
+  audioBuffer = clip.buffer;
+  pauseOffset = 0;
+
+  clipTitle.textContent = clip.name;
+  transcriptInput.value = clip.transcript;
+  setQualityActive(clip.quality);
+
+  annoEmpty.style.display = 'none';
+  annoContent.style.display = 'flex';
+  annoContent.style.flexDirection = 'column';
+  annoContent.style.overflow = 'hidden';
+  annoContent.style.flex = '1';
+
+  drawWaveform(clip.waveform, 0);
+  updateTimeDisplay(0);
+  renderList();
+  scrollToActive();
+
+  // Auto-play
+  playAudio();
+}
+
+function scrollToActive() {
+  const active = clipScroll.querySelector('.clip-row.active');
+  if (active) active.scrollIntoView({ block: 'nearest' });
+}
+
+// ── Playback ──────────────────────────────────────────────
+function playAudio() {
+  if (!audioBuffer || !audioCtx) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  stopAudio(false);
+
+  sourceNode = audioCtx.createBufferSource();
+  sourceNode.buffer = audioBuffer;
+  sourceNode.playbackRate.value = playbackRate;
+  sourceNode.connect(audioCtx.destination);
+  sourceNode.start(0, pauseOffset);
+  startTime = audioCtx.currentTime - pauseOffset / playbackRate;
+  isPlaying = true;
+  playBtn.textContent = '⏸';
+  playBtn.classList.add('playing');
+
+  sourceNode.onended = () => {
+    if (isPlaying) {
+      isPlaying = false;
+      pauseOffset = 0;
+      playBtn.textContent = '▶';
+      playBtn.classList.remove('playing');
+      cancelAnimationFrame(animFrame);
+      drawWaveform(clips[currentIdx].waveform, 1);
+      updateTimeDisplay(audioBuffer.duration);
+    }
+  };
+  tick();
+}
+
+function pauseAudio() {
+  if (!isPlaying) return;
+  pauseOffset = (audioCtx.currentTime - startTime) * playbackRate;
+  sourceNode.stop();
+  isPlaying = false;
+  playBtn.textContent = '▶';
+  playBtn.classList.remove('playing');
+  cancelAnimationFrame(animFrame);
+}
+
+function stopAudio(resetOffset = true) {
+  if (sourceNode) { try { sourceNode.stop(); } catch(e) {} }
+  isPlaying = false;
+  if (resetOffset) pauseOffset = 0;
+  playBtn.textContent = '▶';
+  playBtn.classList.remove('playing');
+  cancelAnimationFrame(animFrame);
+}
+
+function tick() {
+  const elapsed = (audioCtx.currentTime - startTime) * playbackRate;
+  const clamped = Math.min(elapsed, audioBuffer.duration);
+  updateTimeDisplay(clamped);
+  drawWaveform(clips[currentIdx]?.waveform || [], clamped / audioBuffer.duration);
+  if (elapsed < audioBuffer.duration) animFrame = requestAnimationFrame(tick);
+}
+
+function updateTimeDisplay(t) {
+  timeDisplay.textContent = `${fmt(t)} / ${fmt(audioBuffer?.duration || 0)}`;
+}
+
+function fmt(s) {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${String(sec).padStart(2, '0')}`;
+}
+
+// Seek on waveform click
+canvas.addEventListener('click', e => {
+  if (!audioBuffer) return;
+  const rect = canvas.getBoundingClientRect();
+  const pct = (e.clientX - rect.left) / rect.width;
+  const seekTo = pct * audioBuffer.duration;
+  if (isPlaying) { pauseAudio(); pauseOffset = seekTo; playAudio(); }
+  else { pauseOffset = seekTo; drawWaveform(clips[currentIdx].waveform, pct); updateTimeDisplay(seekTo); }
+});
+
+playBtn.addEventListener('click', () => isPlaying ? pauseAudio() : playAudio());
+
+// Speed
+document.querySelectorAll('.spd-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    playbackRate = parseFloat(btn.dataset.rate);
+    document.querySelectorAll('.spd-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (isPlaying) { pauseAudio(); playAudio(); }
+  });
+});
+
+// Nav
+prevBtn.addEventListener('click', () => { if (currentIdx > 0) selectClip(currentIdx - 1); });
+nextBtn.addEventListener('click', () => { if (currentIdx < clips.length - 1) selectClip(currentIdx + 1); });
+
+// ── Quality ───────────────────────────────────────────────
+function setQualityActive(q) {
+  [qGood, qBad, qSkip].forEach(b => b.classList.remove('active'));
+  if (q === 'good') qGood.classList.add('active');
+  if (q === 'bad')  qBad.classList.add('active');
+  if (q === 'skip') qSkip.classList.add('active');
+}
+
+function setQuality(q) {
+  if (currentIdx < 0) return;
+  clips[currentIdx].quality = q;
+  setQualityActive(q);
+  updateStats();
+  renderList();
+}
+
+qGood.addEventListener('click', () => setQuality('good'));
+qBad.addEventListener('click',  () => setQuality('bad'));
+qSkip.addEventListener('click', () => setQuality('skip'));
+
+// ── Save & Next ───────────────────────────────────────────
+function saveAndNext() {
+  if (currentIdx < 0) return;
+  clips[currentIdx].transcript = transcriptInput.value.trim();
+  updateStats();
+  renderList();
+  // Move to next unlabelled or just next
+  const nextUnlabelled = clips.findIndex((c, i) => i > currentIdx && !c.quality);
+  if (nextUnlabelled !== -1) selectClip(nextUnlabelled);
+  else if (currentIdx < clips.length - 1) selectClip(currentIdx + 1);
+}
+
+saveNextBtn.addEventListener('click', saveAndNext);
+
+// ── Keyboard shortcuts ────────────────────────────────────
+document.addEventListener('keydown', e => {
+  const tag = document.activeElement.tagName.toLowerCase();
+  const inTextarea = tag === 'textarea' || tag === 'input';
+
+  if (e.code === 'Space' && !inTextarea) {
+    e.preventDefault();
+    isPlaying ? pauseAudio() : playAudio();
+    return;
+  }
+
+  if (e.code === 'Enter' && !inTextarea) {
+    e.preventDefault();
+    saveAndNext();
+    return;
+  }
+
+  if (!inTextarea) {
+    if (e.key === 'g' || e.key === 'G') setQuality('good');
+    if (e.key === 'b' || e.key === 'B') setQuality('bad');
+    if (e.key === 's' || e.key === 'S') setQuality('skip');
+    if (e.key === 'ArrowRight') selectClip(currentIdx + 1);
+    if (e.key === 'ArrowLeft')  selectClip(currentIdx - 1);
+  }
+
+  // Ctrl/Cmd+Enter in textarea = save
+  if (inTextarea && e.code === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    saveAndNext();
+  }
+});
+
+// ── Stats ─────────────────────────────────────────────────
+function updateStats() {
+  const good  = clips.filter(c => c.quality === 'good').length;
+  const bad   = clips.filter(c => c.quality === 'bad').length;
+  const skip  = clips.filter(c => c.quality === 'skip').length;
+  const done  = good + bad + skip;
+
+  statTotal.textContent = `${clips.length} clips`;
+  statGood.textContent  = `${good} good`;
+  statBad.textContent   = `${bad} bad`;
+  statSkip.textContent  = `${skip} skip`;
+
+  const annotated = clips.filter(c => c.quality && c.transcript).length;
+  exportHint.textContent = `${annotated} clips fully annotated (transcript + quality)`;
+
+  updateProgress();
+}
+
+function updateProgress() {
+  const done = clips.filter(c => c.quality).length;
+  const pct  = clips.length ? done / clips.length * 100 : 0;
+  progressText.textContent = `${done} / ${clips.length}`;
+  progressFillBar.style.width = pct + '%';
+}
+
+// ── Export ────────────────────────────────────────────────
+document.getElementById('export-good-btn').addEventListener('click', () => exportCSV(false));
+document.getElementById('export-all-btn').addEventListener('click',  () => exportCSV(true));
+
+function exportCSV(includeAll) {
+  const rows = [['file_name', 'transcript', 'quality', 'duration_sec']];
+  clips.forEach(c => {
+    if (!includeAll && c.quality !== 'good') return;
+    rows.push([c.name, c.transcript, c.quality || '', c.duration.toFixed(2)]);
+  });
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = includeAll ? 'annotations_all.csv' : 'annotations_good.csv';
+  a.click();
+}
+</script>
+</body>
+</html>
