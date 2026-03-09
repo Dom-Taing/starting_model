@@ -12,6 +12,66 @@ The primary use case is **accent clarification**: speak naturally into a mic, an
 
 ---
 
+## Quick Start
+
+Get the pipeline running in stream mode with the fine-tuned Whisper ASR model and Piper TTS in five steps.
+
+### 1. Install system dependencies
+
+macOS:
+```bash
+brew install ffmpeg libsndfile
+```
+
+Ubuntu/Debian:
+```bash
+sudo apt install ffmpeg libsndfile1
+```
+
+### 2. Clone and set up the environment
+
+```bash
+git clone <repo-url>
+cd starting_model
+
+python -m venv venv
+source venv/bin/activate   # Windows: venv\Scripts\activate
+
+pip install -r requirements.txt
+```
+
+### 3. Download the fine-tuned Whisper checkpoint
+
+The `models/` directory is not tracked in git. Download the checkpoint from the shared link and extract it:
+
+```bash
+# Download whisper-finetuned.zip from the shared link, then:
+unzip whisper-finetuned.zip -d models/whisper-finetuned
+```
+
+The resulting directory must contain the standard HuggingFace files (`config.json`, `model.safetensors` or `pytorch_model.bin`, `tokenizer.json`, etc.).
+
+### 4. Download the Piper voice model
+
+The ONNX voice model files are not tracked in git. Download them from the [Piper releases page](https://github.com/rhasspy/piper/releases) and place both files in `voice_model/`:
+
+```bash
+mkdir -p voice_model
+# Place en_US-hfc_male-medium.onnx and en_US-hfc_male-medium.onnx.json here
+```
+
+### 5. Run
+
+```bash
+python python/main.py --mode stream --asr whisper-finetuned --whisper-model models/whisper-finetuned --tts piper
+```
+
+Speak into your mic. Each time you pause, your utterance is transcribed and immediately played back in a clear synthesized voice. Press **ENTER** to stop.
+
+> **Use headphones** to prevent the mic from picking up TTS playback.
+
+---
+
 ## Architecture
 
 ```
