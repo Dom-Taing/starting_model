@@ -53,7 +53,7 @@ The resulting directory must contain the standard HuggingFace files (`config.jso
 
 ### 4. Download the Piper voice model
 
-The ONNX voice model files are not tracked in git. Download them from the [Piper releases page](https://github.com/rhasspy/piper/releases) and place both files in `voice_model/`:
+The ONNX voice model files are not tracked in git. Download them from the [Piper releases page](https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_US/hfc_male/medium) and place both files in `voice_model/`:
 
 ```bash
 mkdir -p voice_model
